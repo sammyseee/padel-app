@@ -6,6 +6,9 @@ export type Player = {
   id: string
   name: string
   points: number
+  partite_giocate?: number
+  set_vinti?: number
+  set_persi?: number
 }
 
 export type Match = {
