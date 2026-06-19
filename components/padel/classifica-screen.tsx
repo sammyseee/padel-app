@@ -17,7 +17,7 @@ export function ClassificaScreen({
   const [tipoClassifica, setTipoClassifica] = useState<"punti" | "irp">("punti")
 
   // Funzione per il calcolo dell'Indice di Rendimento Ponderato (IRP)
-  const calcolaIRP = (player: any) => {
+  const calcolaIRP = (player: Player) => {
     const partite = player.partite_giocate || 0
     const setVinti = player.set_vinti || 0
     const setPersi = player.set_persi || 0
