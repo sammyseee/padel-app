@@ -9,7 +9,7 @@ export type Player = {
   partite_giocate?: number
   set_vinti?: number
   set_persi?: number
-}
+
 }
 
 export type Match = {
