@@ -76,15 +76,42 @@ export function AppShell() {
 
     const { finished, winnerIds } = await finishMatchInDb(match, sets)
 
+    // Calcolo dei set vinti e persi per la nuova classifica IRP
+    let team1SetsWon = 0
+    let team2SetsWon = 0
+    sets.forEach(([score1, score2]) => {
+      if (score1 > score2) team1SetsWon++
+      else if (score2 > score1) team2SetsWon++
+    })
+
+    const team1Ids = [match.team[0], match.team[1]]
+    const team2Ids = [match.team[2], match.team[3]]
+    const matchPlayers = [...team1Ids, ...team2Ids]
+
     setHistory((prev) => [finished, ...prev])
     setMatches((prev) => prev.filter((m) => m.id !== matchId))
     setPlayers((prev) =>
       prev
-        .map((p) =>
-          winnerIds.includes(p.id)
-            ? { ...p, points: p.points + WIN_POINTS }
-            : p,
-        )
+        .map((p) => {
+          // Se il giocatore non ha partecipato a questa partita, lo lasciamo intatto
+          if (!matchPlayers.includes(p.id)) return p
+
+          // Scopriamo in che squadra era e se ha vinto la partita
+          const isTeam1 = team1Ids.includes(p.id)
+          const isWinner = winnerIds.includes(p.id)
+          
+          const setsVinti = isTeam1 ? team1SetsWon : team2SetsWon
+          const setsPersi = isTeam1 ? team2SetsWon : team1SetsWon
+
+          // Aggiorniamo tutte le sue statistiche
+          return {
+            ...p,
+            points: isWinner ? p.points + WIN_POINTS : p.points,
+            partite_giocate: (p.partite_giocate || 0) + 1,
+            set_vinti: (p.set_vinti || 0) + setsVinti,
+            set_persi: (p.set_persi || 0) + setsPersi,
+          }
+        })
         .sort((a, b) => b.points - a.points),
     )
   }
