@@ -9,7 +9,6 @@ export type Player = {
   partite_giocate?: number
   set_vinti?: number
   set_persi?: number
-
 }
 
 export type Match = {
@@ -30,6 +29,9 @@ type GiocatoreRow = {
   id: string
   name: string
   points: number
+  partite_giocate: number
+  set_vinti: number
+  set_persi: number
 }
 
 type PartitaRow = {
@@ -57,7 +59,7 @@ export async function fetchPlayers(): Promise<Player[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("giocatori")
-    .select("id, name, points")
+    .select("id, name, points, partite_giocate, set_vinti, set_persi")
     .order("points", { ascending: false })
   if (error) throw error
   return (data as GiocatoreRow[]) ?? []
@@ -68,7 +70,7 @@ export async function createPlayer(name: string): Promise<Player> {
   const { data, error } = await supabase
     .from("giocatori")
     .insert({ name, points: 0 })
-    .select("id, name, points")
+    .select("id, name, points, partite_giocate, set_vinti, set_persi")
     .single()
   if (error) throw error
   return data as GiocatoreRow
@@ -139,11 +141,34 @@ export async function finishMatchInDb(
       ? [match.team[0], match.team[1]]
       : [match.team[2], match.team[3]]
 
-  const { error: pointsError } = await supabase.rpc("increment_points", {
-    player_ids: winnerIds,
-    amount: WIN_POINTS,
+  // 1. Recuperiamo i dati attuali dei 4 giocatori coinvolti
+  const { data: currentPlayers, error: fetchErr } = await supabase
+    .from("giocatori")
+    .select("id, points, partite_giocate, set_vinti, set_persi")
+    .in("id", match.team)
+  
+  if (fetchErr) throw fetchErr
+
+  // 2. Calcoliamo e aggiorniamo in blocco i 4 profili sul database
+  const updatePromises = currentPlayers.map((p) => {
+    const isTeamA = p.id === match.team[0] || p.id === match.team[1]
+    const isWinner = winnerIds.includes(p.id)
+    
+    const setsV = isTeamA ? setsWonA : setsWonB
+    const setsP = isTeamA ? setsWonB : setsWonA
+
+    return supabase
+      .from("giocatori")
+      .update({
+        points: p.points + (isWinner ? WIN_POINTS : 0),
+        partite_giocate: (p.partite_giocate || 0) + 1,
+        set_vinti: (p.set_vinti || 0) + setsV,
+        set_persi: (p.set_persi || 0) + setsP,
+      })
+      .eq("id", p.id)
   })
-  if (pointsError) throw pointsError
+
+  await Promise.all(updatePromises)
 
   return { finished: { ...match, sets, winner }, winnerIds }
 }
