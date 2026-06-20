@@ -149,8 +149,8 @@ export async function finishMatchInDb(
   
   if (fetchErr) throw fetchErr
 
-  // 2. Calcoliamo e aggiorniamo in blocco i 4 profili sul database
-  const updatePromises = currentPlayers.map((p) => {
+ // 2. Calcoliamo e aggiorniamo in blocco i 4 profili sul database
+  const updatePromises = (currentPlayers || []).map((p: GiocatoreRow) => {
     const isTeamA = p.id === match.team[0] || p.id === match.team[1]
     const isWinner = winnerIds.includes(p.id)
     
