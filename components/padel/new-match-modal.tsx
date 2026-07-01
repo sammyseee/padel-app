@@ -22,6 +22,7 @@ export function NewMatchModal({
 }) {
   const [dateTime, setDateTime] = useState("")
   const [team, setTeam] = useState<[string, string, string, string]>(["", "", "", ""])
+  const [bestOf, setBestOf] = useState<3 | 5>(3) // Nuova variabile di stato
 
   function setSlot(index: number, value: string) {
     setTeam((prev) => {
@@ -37,7 +38,7 @@ export function NewMatchModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!allFilled || !noDuplicates) return
-    onSubmit({ dateTime, team })
+    onSubmit({ dateTime, team, bestOf }) // Inviamo anche l'impostazione dei set
   }
 
   return (
@@ -66,6 +67,21 @@ export function NewMatchModal({
               onChange={(e) => setDateTime(e.target.value)}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
+          </div>
+
+          {/* Nuovo campo: Formato della partita */}
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Formato Partita
+            </label>
+            <select
+              value={bestOf}
+              onChange={(e) => setBestOf(Number(e.target.value) as 3 | 5)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option value={3}>Al meglio di 3 set</option>
+              <option value={5}>Al meglio di 5 set</option>
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -99,7 +115,7 @@ export function NewMatchModal({
           <button
             type="submit"
             disabled={!allFilled || !noDuplicates}
-            className="w-full rounded-xl bg-blue-600 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-2 w-full rounded-xl bg-blue-600 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Crea Partita
           </button>

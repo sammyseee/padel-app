@@ -21,11 +21,11 @@ export function ScoreModal({
   onClose: () => void
   onSubmit: (matchId: string, sets: Array<[number, number]>) => void
 }) {
-  const [sets, setSets] = useState<Array<[string, string]>>([
-    ["", ""],
-    ["", ""],
-    ["", ""],
-  ])
+  // Genera dinamicamente le caselle in base a match.bestOf (che sarà 3 o 5)
+  const numberOfSets = match.bestOf || 3
+  const initialSets = Array(numberOfSets).fill(["", ""])
+
+  const [sets, setSets] = useState<Array<[string, string]>>(initialSets)
 
   function updateSet(index: number, side: 0 | 1, value: string) {
     setSets((prev) => {
@@ -35,13 +35,29 @@ export function ScoreModal({
     })
   }
 
+  // Logica di validazione rigorosa per bloccare i salvataggi errati
+  const parsedSets: Array<[number, number]> = sets
+    .filter(([x, y]) => x !== "" && y !== "")
+    .map(([x, y]) => [Number(x), Number(y)])
+
+  let setsWonA = 0
+  let setsWonB = 0
+
+  parsedSets.forEach(([a, b]) => {
+    if (a > b) setsWonA++
+    if (b > a) setsWonB++
+  })
+
+  // Calcola quanti set servono per vincere la partita
+  const setsNeededToWin = Math.ceil(numberOfSets / 2)
+  
+  // Il pulsante si attiva SOLO se un team ha raggiunto i set necessari per vincere
+  const isResultValid = setsWonA === setsNeededToWin || setsWonB === setsNeededToWin
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const parsed: Array<[number, number]> = sets
-      .filter(([x, y]) => x !== "" && y !== "")
-      .map(([x, y]) => [Number(x), Number(y)])
-    if (parsed.length === 0) return
-    onSubmit(match.id, parsed)
+    if (!isResultValid) return
+    onSubmit(match.id, parsedSets)
   }
 
   return (
@@ -61,7 +77,7 @@ export function ScoreModal({
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4 grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-3">
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-slate-700 text-right">
               {teamName(players, match.team[0], match.team[1])}
             </span>
             <div className="flex gap-2">
@@ -71,14 +87,14 @@ export function ScoreModal({
                   inputMode="numeric"
                   value={s[0]}
                   onChange={(e) => updateSet(i, 0, e.target.value)}
-                  className="h-11 w-11 rounded-lg border border-slate-200 bg-slate-50 text-center text-base font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="h-10 w-10 rounded-lg border border-slate-200 bg-slate-50 text-center text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   placeholder="-"
                   aria-label={`Set ${i + 1} coppia 1`}
                 />
               ))}
             </div>
 
-            <span className="text-sm font-medium text-slate-700">
+            <span className="text-sm font-medium text-slate-700 text-right">
               {teamName(players, match.team[2], match.team[3])}
             </span>
             <div className="flex gap-2">
@@ -88,7 +104,7 @@ export function ScoreModal({
                   inputMode="numeric"
                   value={s[1]}
                   onChange={(e) => updateSet(i, 1, e.target.value)}
-                  className="h-11 w-11 rounded-lg border border-slate-200 bg-slate-50 text-center text-base font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="h-10 w-10 rounded-lg border border-slate-200 bg-slate-50 text-center text-sm font-semibold text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   placeholder="-"
                   aria-label={`Set ${i + 1} coppia 2`}
                 />
@@ -97,13 +113,16 @@ export function ScoreModal({
           </div>
 
           <p className="mb-4 text-xs text-slate-500">
-            Lascia vuoti i set non giocati. La coppia vincente riceve 3 punti a
-            testa.
+            {isResultValid 
+              ? "Risultato valido! Puoi salvare."
+              : `Inserisci i punteggi per dichiarare un vincitore (vince chi arriva a ${setsNeededToWin} set).`
+            }
           </p>
 
           <button
             type="submit"
-            className="w-full rounded-xl bg-blue-600 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-700"
+            disabled={!isResultValid}
+            className="w-full rounded-xl bg-blue-600 py-3 text-base font-semibold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
           >
             Salva Risultato
           </button>
