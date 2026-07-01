@@ -15,8 +15,8 @@ import {
 } from "@/lib/padel-data"
 import { BottomNav, type Tab } from "@/components/padel/bottom-nav"
 import { ClassificaScreen } from "@/components/padel/classifica-screen"
-import { NuovaScreen } from "@/components/nuova-screen"
-import { StoricoScreen } from "@/components/storico-screen"
+import { NuovaScreen } from "@/components/padel/nuova-screen"
+import { StoricoScreen } from "@/components/padel/storico-screen"
 import { Loader2 } from "lucide-react"
 
 export function AppShell() {
