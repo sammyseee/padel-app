@@ -14,11 +14,10 @@ export type Player = {
 export type Match = {
   id: string
   dateTime: string // ISO string
-  // team A = [player1, player2], team B = [player3, player4]
   team: [string, string, string, string]
+  bestOf: 3 | 5 // <--- NUOVA IMPOSTAZIONE
 }
 
-// A finished match: sets are pairs [teamAGames, teamBGames]
 export type FinishedMatch = Match & {
   sets: Array<[number, number]>
   winner: "A" | "B"
@@ -44,6 +43,7 @@ type PartitaRow = {
   sets: Array<[number, number]> | null
   winner: "A" | "B" | null
   status: "upcoming" | "finished"
+  best_of: number // <--- NUOVA COLONNA
 }
 
 function mapMatch(row: PartitaRow): Match {
@@ -51,6 +51,7 @@ function mapMatch(row: PartitaRow): Match {
     id: row.id,
     dateTime: row.date_time,
     team: [row.player1, row.player2, row.player3, row.player4],
+    bestOf: (row.best_of === 5 ? 5 : 3) as 3 | 5,
   }
 }
 
@@ -114,6 +115,7 @@ export async function createMatch(match: Omit<Match, "id">): Promise<Match> {
       player3: match.team[2],
       player4: match.team[3],
       status: "upcoming",
+      best_of: match.bestOf, // Salviamo il formato della partita
     })
     .select("*")
     .single()
@@ -130,6 +132,7 @@ export async function finishMatchInDb(
   const setsWonB = sets.filter(([a, b]) => b > a).length
   const winner: "A" | "B" = setsWonA >= setsWonB ? "A" : "B"
 
+  // 1. Aggiorniamo la partita
   const { error: updateError } = await supabase
     .from("partite")
     .update({ sets, winner, status: "finished" })
@@ -141,19 +144,19 @@ export async function finishMatchInDb(
       ? [match.team[0], match.team[1]]
       : [match.team[2], match.team[3]]
 
-  // 1. Recuperiamo i dati attuali dei 4 giocatori coinvolti
+  // 2. Recuperiamo i dati dei 4 giocatori
   const { data: currentPlayers, error: fetchErr } = await supabase
     .from("giocatori")
     .select("id, points, partite_giocate, set_vinti, set_persi")
     .in("id", match.team)
-  
+
   if (fetchErr) throw fetchErr
 
- // 2. Calcoliamo e aggiorniamo in blocco i 4 profili sul database
+  // 3. Calcoliamo e aggiorniamo TUTTE le statistiche
   const updatePromises = (currentPlayers || []).map((p: GiocatoreRow) => {
     const isTeamA = p.id === match.team[0] || p.id === match.team[1]
     const isWinner = winnerIds.includes(p.id)
-    
+
     const setsV = isTeamA ? setsWonA : setsWonB
     const setsP = isTeamA ? setsWonB : setsWonA
 
