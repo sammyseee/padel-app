@@ -16,7 +16,7 @@ import {
 import { BottomNav, type Tab } from "@/components/bottom-nav"
 import { ClassificaScreen } from "@/components/classifica-screen"
 import { NuovaScreen } from "@/components/nuova-screen"
-import { StoricoScreen } from "@/components/storico-screen"
+import { StoricoScreen } from "@/padel/storico-screen"
 import { Loader2 } from "lucide-react"
 
 export function AppShell() {
