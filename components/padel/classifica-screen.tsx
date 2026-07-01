@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { UserPlus, X } from "lucide-react"
+import { UserPlus, X, Flame } from "lucide-react"
 import type { Player } from "@/lib/padel-data"
 
 export function ClassificaScreen({
@@ -129,11 +129,20 @@ export function ClassificaScreen({
             <span className="w-7 text-center text-xl font-bold text-blue-600">
               {index + 1}
             </span>
-            <span className="flex-1 truncate font-medium text-slate-800">
-              {player.name}
-            </span>
+            <div className="flex flex-1 items-center gap-2 overflow-hidden">
+              <span className="truncate font-medium text-slate-800">
+                {player.name}
+              </span>
+              {/* Etichetta Win Streak (appare solo se le vittorie di fila sono >= 5) */}
+              {(player.win_streak ?? 0) >= 5 && (
+                <div className="flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-600 shadow-sm" title={`${player.win_streak} vittorie consecutive!`}>
+                  <Flame className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
+                  {player.win_streak}
+                </div>
+              )}
+            </div>
 
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-end shrink-0">
               <span className="font-bold text-slate-900">
                 {tipoClassifica === "punti"
                   ? `${player.points} pt`

@@ -1,5 +1,7 @@
 "use client"
 
+import { useState } from "react"
+import { Trash2 } from "lucide-react"
 import type { FinishedMatch, Player } from "@/lib/padel-data"
 import { cn } from "@/lib/utils"
 
@@ -59,13 +61,26 @@ function TeamRow({
 export function StoricoScreen({
   history,
   players,
+  onDeleteMatch,
 }: {
   history: FinishedMatch[]
   players: Player[]
+  onDeleteMatch: (matchId: string) => Promise<void>
 }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   const sorted = [...history].sort(
     (a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime(),
   )
+
+  async function handleDelete(matchId: string) {
+    if (!window.confirm("Sei sicuro di voler eliminare questa partita? I punti verranno tolti dalla classifica e la rimozione è irreversibile.")) {
+      return
+    }
+    setDeletingId(matchId)
+    await onDeleteMatch(matchId)
+    setDeletingId(null)
+  }
 
   return (
     <div className="px-4 pb-6 pt-5">
@@ -77,11 +92,22 @@ export function StoricoScreen({
         {sorted.map((match) => {
           const aScores = match.sets.map((s) => s[0])
           const bScores = match.sets.map((s) => s[1])
+          const isDeleting = deletingId === match.id
+
           return (
-            <li key={match.id} className="rounded-xl bg-white p-4 shadow-sm">
-              <p className="mb-3 text-xs font-medium capitalize text-slate-400">
-                {formatDate(match.dateTime)}
-              </p>
+            <li key={match.id} className={cn("rounded-xl bg-white p-4 shadow-sm transition-opacity", isDeleting && "opacity-50 pointer-events-none")}>
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-medium capitalize text-slate-400">
+                  {formatDate(match.dateTime)}
+                </p>
+                <button
+                  onClick={() => handleDelete(match.id)}
+                  title="Elimina partita"
+                  className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
               <div className="flex flex-col gap-2.5">
                 <TeamRow
                   label={`${name(players, match.team[0])} & ${name(players, match.team[1])}`}
