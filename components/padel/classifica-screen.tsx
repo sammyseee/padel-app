@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { UserPlus, X } from "lucide-react"
+import { UserPlus, X, Flame } from "lucide-react"
 import type { Player } from "@/lib/padel-data"
 
 export function ClassificaScreen({
@@ -14,8 +14,27 @@ export function ClassificaScreen({
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState("")
   const [saving, setSaving] = useState(false)
+  const [tipoClassifica, setTipoClassifica] = useState<"punti" | "irp">("punti")
 
-  const ranked = [...players].sort((a, b) => b.points - a.points)
+  // Funzione per il calcolo dell'Indice di Rendimento Ponderato (IRP)
+  const calcolaIRP = (player: any) => {
+    const partite = player.partite_giocate || 0
+    const setVinti = player.set_vinti || 0
+    const setPersi = player.set_persi || 0
+
+    if (partite === 0) return 0
+
+    return (setVinti - setPersi) / (partite + 10)
+  }
+
+  // Ordinamento dinamico in base al tab selezionato
+  const ranked = [...players].sort((a, b) => {
+    if (tipoClassifica === "punti") {
+      return b.points - a.points
+    } else {
+      return calcolaIRP(b) - calcolaIRP(a)
+    }
+  })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -79,6 +98,28 @@ export function ClassificaScreen({
         </form>
       )}
 
+      {/* Selettore Tipo Classifica */}
+      <div className="mb-4 flex rounded-lg bg-slate-100 p-1">
+        <button
+          onClick={() => setTipoClassifica("punti")}
+          className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${tipoClassifica === "punti"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+            }`}
+        >
+          Punti Attuali
+        </button>
+        <button
+          onClick={() => setTipoClassifica("irp")}
+          className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${tipoClassifica === "irp"
+              ? "bg-white text-slate-900 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+            }`}
+        >
+          Rendimento (IRP)
+        </button>
+      </div>
+
       <ul className="flex flex-col gap-2.5">
         {ranked.map((player, index) => (
           <li
@@ -88,10 +129,29 @@ export function ClassificaScreen({
             <span className="w-7 text-center text-xl font-bold text-blue-600">
               {index + 1}
             </span>
-            <span className="flex-1 truncate font-medium text-slate-800">
-              {player.name}
-            </span>
-            <span className="font-bold text-slate-900">{player.points} pt</span>
+            <div className="flex flex-1 items-center gap-2 overflow-hidden">
+              <span className="truncate font-medium text-slate-800">
+                {player.name}
+              </span>
+              {/* Etichetta Win Streak (appare solo se le vittorie di fila sono >= 5) */}
+              {(player.win_streak ?? 0) >= 5 && (
+                <div className="flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-600 shadow-sm" title={`${player.win_streak} vittorie consecutive!`}>
+                  <Flame className="h-3.5 w-3.5 fill-orange-500 text-orange-500" />
+                  {player.win_streak}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-end shrink-0">
+              <span className="font-bold text-slate-900">
+                {tipoClassifica === "punti"
+                  ? `${player.points} pt`
+                  : calcolaIRP(player).toFixed(2)}
+              </span>
+              <span className="text-xs font-medium text-slate-400">
+                {player.partite_giocate || 0} match
+              </span>
+            </div>
           </li>
         ))}
         {ranked.length === 0 && (

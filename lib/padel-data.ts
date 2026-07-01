@@ -6,16 +6,19 @@ export type Player = {
   id: string
   name: string
   points: number
+  partite_giocate?: number
+  set_vinti?: number
+  set_persi?: number
+  win_streak?: number // <--- Nuova variabile per il fuoco
 }
 
 export type Match = {
   id: string
-  dateTime: string // ISO string
-  // team A = [player1, player2], team B = [player3, player4]
+  dateTime: string
   team: [string, string, string, string]
+  bestOf: 3 | 5
 }
 
-// A finished match: sets are pairs [teamAGames, teamBGames]
 export type FinishedMatch = Match & {
   sets: Array<[number, number]>
   winner: "A" | "B"
@@ -26,6 +29,10 @@ type GiocatoreRow = {
   id: string
   name: string
   points: number
+  partite_giocate: number
+  set_vinti: number
+  set_persi: number
+  win_streak: number
 }
 
 type PartitaRow = {
@@ -38,6 +45,7 @@ type PartitaRow = {
   sets: Array<[number, number]> | null
   winner: "A" | "B" | null
   status: "upcoming" | "finished"
+  best_of: number
 }
 
 function mapMatch(row: PartitaRow): Match {
@@ -45,6 +53,7 @@ function mapMatch(row: PartitaRow): Match {
     id: row.id,
     dateTime: row.date_time,
     team: [row.player1, row.player2, row.player3, row.player4],
+    bestOf: (row.best_of === 5 ? 5 : 3) as 3 | 5,
   }
 }
 
@@ -53,7 +62,7 @@ export async function fetchPlayers(): Promise<Player[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from("giocatori")
-    .select("id, name, points")
+    .select("id, name, points, partite_giocate, set_vinti, set_persi, win_streak")
     .order("points", { ascending: false })
   if (error) throw error
   return (data as GiocatoreRow[]) ?? []
@@ -64,7 +73,7 @@ export async function createPlayer(name: string): Promise<Player> {
   const { data, error } = await supabase
     .from("giocatori")
     .insert({ name, points: 0 })
-    .select("id, name, points")
+    .select("id, name, points, partite_giocate, set_vinti, set_persi, win_streak")
     .single()
   if (error) throw error
   return data as GiocatoreRow
@@ -108,6 +117,7 @@ export async function createMatch(match: Omit<Match, "id">): Promise<Match> {
       player3: match.team[2],
       player4: match.team[3],
       status: "upcoming",
+      best_of: match.bestOf,
     })
     .select("*")
     .single()
@@ -135,13 +145,83 @@ export async function finishMatchInDb(
       ? [match.team[0], match.team[1]]
       : [match.team[2], match.team[3]]
 
-  const { error: pointsError } = await supabase.rpc("increment_points", {
-    player_ids: winnerIds,
-    amount: WIN_POINTS,
+  const { data: currentPlayers, error: fetchErr } = await supabase
+    .from("giocatori")
+    .select("id, points, partite_giocate, set_vinti, set_persi, win_streak")
+    .in("id", match.team)
+  
+  if (fetchErr) throw fetchErr
+
+  const updatePromises = (currentPlayers || []).map((p: GiocatoreRow) => {
+    const isTeamA = p.id === match.team[0] || p.id === match.team[1]
+    const isWinner = winnerIds.includes(p.id)
+    
+    const setsV = isTeamA ? setsWonA : setsWonB
+    const setsP = isTeamA ? setsWonB : setsWonA
+
+    // Se vince aumenta la striscia, se perde torna a 0
+    const newStreak = isWinner ? (p.win_streak || 0) + 1 : 0
+
+    return supabase
+      .from("giocatori")
+      .update({
+        points: p.points + (isWinner ? WIN_POINTS : 0),
+        partite_giocate: (p.partite_giocate || 0) + 1,
+        set_vinti: (p.set_vinti || 0) + setsV,
+        set_persi: (p.set_persi || 0) + setsP,
+        win_streak: newStreak,
+      })
+      .eq("id", p.id)
   })
-  if (pointsError) throw pointsError
+
+  await Promise.all(updatePromises)
 
   return { finished: { ...match, sets, winner }, winnerIds }
+}
+
+// NUOVA FUNZIONE: Cancella partita e ripristina i punti
+export async function deleteFinishedMatch(matchId: string): Promise<string[]> {
+  const supabase = createClient()
+  
+  // 1. Leggiamo la partita per sapere chi giocava
+  const { data: matchData } = await supabase.from("partite").select("*").eq("id", matchId).single()
+  if (!matchData || matchData.status !== "finished") return []
+
+  const sets = matchData.sets || []
+  const setsWonA = sets.filter(([a, b]) => a > b).length
+  const setsWonB = sets.filter(([a, b]) => b > a).length
+  const winner = matchData.winner
+  const team = [matchData.player1, matchData.player2, matchData.player3, matchData.player4]
+  const winnerIds = winner === "A" ? [team[0], team[1]] : [team[2], team[3]]
+
+  // 2. Leggiamo i giocatori
+  const { data: currentPlayers } = await supabase.from("giocatori").select("*").in("id", team)
+
+  // 3. Sottraiamo le statistiche generate da questa partita
+  const updatePromises = (currentPlayers || []).map((p: GiocatoreRow) => {
+    const isTeamA = p.id === team[0] || p.id === team[1]
+    const isWinner = winnerIds.includes(p.id)
+    const setsV = isTeamA ? setsWonA : setsWonB
+    const setsP = isTeamA ? setsWonB : setsWonA
+
+    return supabase
+      .from("giocatori")
+      .update({
+        points: Math.max(0, p.points - (isWinner ? WIN_POINTS : 0)),
+        partite_giocate: Math.max(0, (p.partite_giocate || 0) - 1),
+        set_vinti: Math.max(0, (p.set_vinti || 0) - setsV),
+        set_persi: Math.max(0, (p.set_persi || 0) - setsP),
+        win_streak: isWinner ? Math.max(0, (p.win_streak || 0) - 1) : p.win_streak
+      })
+      .eq("id", p.id)
+  })
+
+  await Promise.all(updatePromises)
+
+  // 4. Eliminiamo fisicamente la partita dal database
+  await supabase.from("partite").delete().eq("id", matchId)
+  
+  return team // Restituiamo gli ID dei giocatori da aggiornare nell'interfaccia
 }
 
 export function formatDateTime(iso: string): string {
