@@ -59,11 +59,11 @@ function TeamRow({
 export function StoricoScreen({
   history,
   players,
-  onDeleteMatch, // <--- Ecco la "porta" che mancava!
+  onDeleteMatch,
 }: {
   history: FinishedMatch[]
   players: Player[]
-  onDeleteMatch: (matchId: string) => Promise<void> // <--- Diciamo a TS che esiste
+  onDeleteMatch: (matchId: string) => Promise<void>
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
