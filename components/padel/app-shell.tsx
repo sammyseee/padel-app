@@ -8,15 +8,15 @@ import {
   createPlayer,
   createMatch,
   finishMatchInDb,
-  WIN_POINTS,
+  deleteFinishedMatch,
   type Player,
   type Match,
   type FinishedMatch,
 } from "@/lib/padel-data"
-import { BottomNav, type Tab } from "./bottom-nav"
-import { ClassificaScreen } from "./classifica-screen"
-import { NuovaScreen } from "./nuova-screen"
-import { StoricoScreen } from "./storico-screen"
+import { BottomNav, type Tab } from "@/components/bottom-nav"
+import { ClassificaScreen } from "@/components/classifica-screen"
+import { NuovaScreen } from "@/components/nuova-screen"
+import { StoricoScreen } from "@/components/storico-screen"
 import { Loader2 } from "lucide-react"
 
 export function AppShell() {
@@ -27,27 +27,29 @@ export function AppShell() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  async function loadAllData() {
+    try {
+      const [p, m, h] = await Promise.all([
+        fetchPlayers(),
+        fetchUpcomingMatches(),
+        fetchHistory(),
+      ])
+      setPlayers(p)
+      setMatches(m)
+      setHistory(h)
+    } catch (err) {
+      console.log("[v0] Errore caricamento dati:", err)
+      setError("Impossibile caricare i dati dal database.")
+    }
+  }
+
   useEffect(() => {
     let active = true
-    async function load() {
-      try {
-        const [p, m, h] = await Promise.all([
-          fetchPlayers(),
-          fetchUpcomingMatches(),
-          fetchHistory(),
-        ])
-        if (!active) return
-        setPlayers(p)
-        setMatches(m)
-        setHistory(h)
-      } catch (err) {
-        console.log("[v0] Errore caricamento dati:", err)
-        if (active) setError("Impossibile caricare i dati dal database.")
-      } finally {
-        if (active) setLoading(false)
-      }
+    async function init() {
+      await loadAllData()
+      if (active) setLoading(false)
     }
-    load()
+    init()
     return () => {
       active = false
     }
@@ -74,19 +76,29 @@ export function AppShell() {
     const match = matches.find((m) => m.id === matchId)
     if (!match) return
 
-    const { finished, winnerIds } = await finishMatchInDb(match, sets)
+    await finishMatchInDb(match, sets)
+    await loadAllData()
+  }
 
-    setHistory((prev) => [finished, ...prev])
-    setMatches((prev) => prev.filter((m) => m.id !== matchId))
-    setPlayers((prev) =>
-      prev
-        .map((p) =>
-          winnerIds.includes(p.id)
-            ? { ...p, points: p.points + WIN_POINTS }
-            : p,
-        )
-        .sort((a, b) => b.points - a.points),
-    )
+  async function handleDeleteMatch(matchId: string) {
+    try {
+      // Nascondiamo subito la partita per dare la sensazione di velocità
+      setHistory((prev) => prev.filter((m) => m.id !== matchId))
+      
+      // Cancelliamo dal DB e resettiamo i punti
+      await deleteFinishedMatch(matchId)
+      
+      // Ricarichiamo tutto
+      await loadAllData()
+    } catch (err) {
+      if (err instanceof Error) {
+        alert("Errore del Database: " + err.message)
+      } else {
+        alert("Si è verificato un errore sconosciuto.")
+      }
+      // Se fallisce, rimettiamo tutto come prima
+      await loadAllData()
+    }
   }
 
   if (loading) {
@@ -121,7 +133,11 @@ export function AppShell() {
           />
         )}
         {tab === "storico" && (
-          <StoricoScreen history={history} players={players} />
+          <StoricoScreen
+            history={history}
+            players={players}
+            onDeleteMatch={handleDeleteMatch}
+          />
         )}
       </div>
       <BottomNav active={tab} onChange={setTab} />
